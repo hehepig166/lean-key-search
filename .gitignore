@@ -1,0 +1,10 @@
+# Python cache
+__pycache__/
+
+# Dataset files
+selected_mathlib_dataset.jsonl
+
+# Temporary files in this project
+prompts_log/
+__prompt.txt
+__result*.txt
