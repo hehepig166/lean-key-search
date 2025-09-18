@@ -421,11 +421,12 @@ class MathlibSearchAgent:
         print(f"\n🔍 Processing query: {user_query}")
         print("="*60)
         
+        # Reset conversation history and search count for new query
+        self.conversation_history = []
+        self.search_count = 0
+        
         # Add user message
         self.add_message("user", user_query)
-        
-        # Reset search count for new query
-        self.search_count = 0
         
         # Multi-turn interaction loop
         while True:
