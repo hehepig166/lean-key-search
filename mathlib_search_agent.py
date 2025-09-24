@@ -14,6 +14,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import requests
 from search_dataset import load_selected_dataset, search_tool
 from llm_utils import create_one_gemini_response
+from openai import OpenAI
 
 
 class ResponseProvider(ABC):
@@ -204,6 +205,57 @@ class GeminiResponseProvider(ResponseProvider):
             return response
         except Exception as e:
             raise RuntimeError(f"Failed to get response from Gemini: {e}")
+    
+    def clean_response(self, response: str) -> str:
+        """Clean response by removing thinking tags."""
+        return self._clean_thinking_tags(response)
+    
+    def _clean_thinking_tags(self, text: str) -> str:
+        """Remove <think>...</think> tags from text."""
+        # Remove <think>...</think> tags and their content
+        cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+        # Remove any remaining <think> or </think> tags
+        cleaned = re.sub(r'</?think>', '', cleaned)
+        # Clean up extra whitespace
+        cleaned = re.sub(r'\n\s*\n', '\n\n', cleaned).strip()
+        return cleaned
+
+
+class OpenAIResponseProvider(ResponseProvider):
+    """Response provider that gets responses from OpenAI."""
+    
+    def __init__(self, model: str = "gpt-4o", api_key: Optional[str] = None, base_url: Optional[str] = None):
+        """
+        Initialize OpenAI response provider.
+        
+        Args:
+            model: OpenAI model name
+            api_key: OpenAI API key (if None, will use OPENAI_API_KEY env var)
+            base_url: OpenAI API base URL (if None, will use default OpenAI endpoint)
+        """
+        self.model = model
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        self.base_url = base_url
+        
+        # Initialize OpenAI client
+        self.client = OpenAI(
+            base_url=self.base_url,
+            api_key=self.api_key,
+        )
+    
+    def get_response(self, prompt: str) -> str:
+        """Get response from OpenAI."""
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=2048,
+                temperature=0.1
+            )
+            
+            return response.choices[0].message.content
+        except Exception as e:
+            raise RuntimeError(f"Failed to get response from OpenAI: {e}")
     
     def clean_response(self, response: str) -> str:
         """Clean response by removing thinking tags."""
@@ -538,7 +590,7 @@ class MathlibSearchAgent:
 def main():
     """Main function to run the agent."""
     # Choose response provider
-    provider_type = input("Choose response provider (1: stdin, 2: ollama, 3: gemini): ").strip()
+    provider_type = input("Choose response provider (1: stdin, 2: ollama, 3: gemini, 4: openai): ").strip()
     
     if provider_type == "2":
         model = input("Enter Ollama model name (default: deepseek-r1): ").strip() or "deepseek-r1"
@@ -547,6 +599,11 @@ def main():
         model = input("Enter Gemini model name (default: gemini-2.5-flash): ").strip() or "gemini-2.5-flash"
         api_key = input("Enter Gemini API key (or press Enter to use GEMINI_API_KEY env var): ").strip() or None
         provider = GeminiResponseProvider(model=model, api_key=api_key)
+    elif provider_type == "4":
+        model = input("Enter OpenAI model name (default: gpt-4o): ").strip() or "gpt-4o"
+        api_key = input("Enter OpenAI API key (or press Enter to use OPENAI_API_KEY env var): ").strip() or None
+        base_url = input("Enter OpenAI base URL (or press Enter for default): ").strip() or None
+        provider = OpenAIResponseProvider(model=model, api_key=api_key, base_url=base_url)
     else:
         provider = StdinResponseProvider()
     
